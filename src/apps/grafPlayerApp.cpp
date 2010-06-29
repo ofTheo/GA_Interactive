@@ -53,6 +53,8 @@ void GrafPlayerApp::setup(){
 	bUseAudio		= true;
 	bUseArchitecture= true;
 	
+	lastTimePointAddedF = ofGetElapsedTimef();
+	
 	prevStroke		= 0;
 	currentTagID	= 0;
 	waitTime		= 2.f;
@@ -60,6 +62,9 @@ void GrafPlayerApp::setup(){
 	rotationY		= -45;
 	tagMoveForce	= .1;
 	tagPosVel.set(0,0,0);
+	
+	smoothX			= 0.0;
+	smoothY			= 0.0;
 	//myTagDirectory = TAG_DIRECTORY;
 	
 	fontSS.loadFont("fonts/frabk.ttf",9);
@@ -106,7 +111,8 @@ void GrafPlayerApp::setup(){
 		createWarpedArchitecture();
 	}
 	
-	
+	loadTags();
+
 	// temp
 	//panel.setSelectedPanel("FBO Warper");
 	
@@ -119,15 +125,36 @@ void GrafPlayerApp::update(){
 
 	dt  = ofGetElapsedTimef()-lastTime;
 	lastTime  = ofGetElapsedTimef();
+		
+	if( panel.getValueB("useLaser") ){
+		if( panel.getValueB("bUseClearZone") ){
+			laserTracker.setUseClearZone(true);			
+			checkLaserHitState();		
+		}else{
+			laserTracker.setUseClearZone(false);
+		}
+		
+		if( panel.getValueB("laserMode") ){
+			mode = PLAY_MODE_RECORD;
+		}else{
+			mode = PLAY_MODE_PLAY;
+		}
+	}else{
+			mode = PLAY_MODE_PLAY;
+	}
 	
 	
 	bool bTrans = false;
-	
-	if( mode == PLAY_MODE_LOAD )
-	{
-		loadTags();
+	if( currentTagID >= tags.size() ){
+		currentTagID = tags.size()-1;
+		if( currentTagID < 0 ){
+			currentTagID = 0;
+			loadTags();
+		}
 	}
-	else if( mode == PLAY_MODE_PLAY && tags.size() > 0 )
+		
+
+	if( mode == PLAY_MODE_PLAY && tags.size() > 0 )
 	{
 		
 		//---- set drawing data for render
@@ -165,28 +192,33 @@ void GrafPlayerApp::update(){
 		updateParticles();
 			
 		
-		//--------- TAG ROTATION + POSITION
-		if(bRotating && !myTagPlayer.bPaused ) rotationY += panel.getValueF("ROT_SPEED")*dt;
+		//THEO
 		
-		// update pos / vel
-		tags[currentTagID].position.x += tagPosVel.x;
-		tags[currentTagID].position.y += tagPosVel.y;
-		
-		tagPosVel.x -= .1*tagPosVel.x;
-		tagPosVel.y -= .1*tagPosVel.y;
-
+		if( panel.getValueB("useLaser") ){		
+			handleLaserPlayback();
+		}else{
+			//--------- TAG ROTATION + POSITION
+			if(bRotating && !myTagPlayer.bPaused ) rotationY += panel.getValueF("ROT_SPEED")*dt;
+			
+			// update pos / vel
+			tags[currentTagID].position.x += tagPosVel.x;
+			tags[currentTagID].position.y += tagPosVel.y;
+			
+			tagPosVel.x -= .1*tagPosVel.x;
+			tagPosVel.y -= .1*tagPosVel.y;
+		}
 	}
-	
-	
-	
+	else if( mode == PLAY_MODE_RECORD ){
+		handleLaserRecord();
+	}
+		
 	// controls
 	if( bShowPanel ) updateControlPanel();
 	
-	
+	panel.clearAllChanged();
 }
 
-void GrafPlayerApp::updateParticles()
-{
+void GrafPlayerApp::updateParticles(){
 	
 	int lastStroke = myTagPlayer.getCurrentStroke();
 	int lastPoint  = myTagPlayer.getCurrentId();
@@ -345,13 +377,69 @@ void GrafPlayerApp::draw(){
 		//nothing while loading
 		;
 	}
-	else if( mode == PLAY_MODE_PLAY )
-	{
+	else if( mode == PLAY_MODE_RECORD ){
+		
+		ofPushStyle();
+			ofSetColor(255, 255, 255, 255);
+			ofNoFill();
+			
+			for(int k = 0; k < simpleLine.size(); k++){
+				if( simpleLine[k].size() < 2 )continue;
+				
+				ofSetLineWidth(2);
+				ofBeginShape();
+					for(int i = 0; i < simpleLine[k].size(); i++){
+						ofVertex( simpleLine[k].at(i).x * (float)screenW, simpleLine[k].at(i).y * (float)screenH);
+					}
+				ofEndShape(false);
+			}
+			
+		ofPopStyle();		
+
+		ofSetColor(255, 255, 255, 255);
+		
+//		if( tags[currentTagID].getNPts() > 3 ){
+//		
+//			drawer.setup( &tags[currentTagID], tags[currentTagID].distMax );
+//							
+////			glPushMatrix();
+////			
+////				if( bUseFog ){
+////					glFogf(GL_FOG_START, fogStart );
+////					glFogf(GL_FOG_END, fogEnd );
+////					glEnable(GL_FOG);				
+////				}
+////			
+////				glPushMatrix();
+////					
+////					glDisable(GL_DEPTH_TEST);
+////									
+////					// draw particles
+////					particleDrawer.draw(myTagPlayer.getCurrentPoint().z,  screenW,  screenH);
+////									
+////					// draw audio particles
+////					if( bUseAudio && panel.getValueB("use_drop") ) drops.draw();
+////					
+////					glEnable(GL_DEPTH_TEST);
+////					
+////					// draw tag
+////					glPushMatrix();
+////						drawer.draw(  tags[currentTagID].myStrokes.size()-1, tags[currentTagID].getNPts()-1 );
+////					glPopMatrix();
+////			
+////				glPopMatrix();
+////			
+////			glPopMatrix();
+////			
+////			glDisable(GL_DEPTH_TEST);
+////			glDisable(GL_FOG);
+////		
+////		}
+			
 	
-		//adjust viewport to match position of tag
-		glViewport(tags[currentTagID].position.x,-tags[currentTagID].position.y,fbo.texData.width,fbo.texData.height);
+	}else if( mode == PLAY_MODE_PLAY && tags.size() ){
 		
-		
+
 		glPushMatrix();
 		
 			if( bUseFog )
@@ -360,17 +448,17 @@ void GrafPlayerApp::draw(){
 				glFogf(GL_FOG_END, fogEnd );
 				glEnable(GL_FOG);				
 			}
-		
+
 			glTranslatef(screenW/2, screenH/2, 0);
-			glScalef(tags[currentTagID].position.z,tags[currentTagID].position.z,tags[currentTagID].position.z);
-		
+			//glScalef(tags[currentTagID].position.z,tags[currentTagID].position.z,tags[currentTagID].position.z);
+			
 			glPushMatrix();
 		
 				glRotatef(tags[currentTagID].rotation.x,1,0,0);
 				glRotatef(tags[currentTagID].rotation.y+rotationY,0,1,0);
 				glRotatef(tags[currentTagID].rotation.z,0,0,1);
-		
-				glTranslatef(-tags[currentTagID].min.x*tags[currentTagID].drawScale,-tags[currentTagID].min.y*tags[currentTagID].drawScale,-tags[currentTagID].min.z);
+				
+				//glTranslatef(-tags[currentTagID].min.x*tags[currentTagID].drawScale,-tags[currentTagID].min.y*tags[currentTagID].drawScale,-tags[currentTagID].min.z);
 				glTranslatef(-tags[currentTagID].center.x*tags[currentTagID].drawScale,-tags[currentTagID].center.y*tags[currentTagID].drawScale,-tags[currentTagID].center.z);
 		
 				glDisable(GL_DEPTH_TEST);
@@ -389,25 +477,21 @@ void GrafPlayerApp::draw(){
 					drawer.draw( myTagPlayer.getCurrentStroke(), myTagPlayer.getCurrentId() );
 				glPopMatrix();
 		
-				// draw bounding box
-				glPushMatrix();
-					ofSetColor(255, 255, 255);
-					glScalef( tags[currentTagID].drawScale, tags[currentTagID].drawScale, 1);
-					//tags[currentTagID].drawBoundingBox( tags[currentTagID].min, tags[currentTagID].max, tags[currentTagID].center );
-				glPopMatrix();
-						
 			glPopMatrix();
 		
 		glPopMatrix();
 		
 		
 		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_FOG);
-			
+		glDisable(GL_FOG);		
+	
 	}
 	
+	if( panel.getValueB("useLaser") && panel.getValueB("bUseClearZone") ){
+		laserTracker.drawClearZone(0, 0, screenW, screenH);
+	}
 	
-	if(bUseArchitecture)
+	if(bUseArchitecture && mode == PLAY_MODE_PLAY )
 	{
 		
 		glViewport(0,0,fbo.texData.width,fbo.texData.height);
@@ -473,6 +557,7 @@ void GrafPlayerApp::draw(){
 	
 	//---- draw fbo to screen
 	fbo.drawWarped(0, 0,screenW, screenH,pWarper.u,pWarper.v,pWarper.num_x_sections,pWarper.num_y_sections);
+	fbo.drawWarped(screenW, 0,screenW, screenH,pWarper.u,pWarper.v,pWarper.num_x_sections,pWarper.num_y_sections);
 	
 	
 	// -- arch drawing tool
@@ -486,20 +571,27 @@ void GrafPlayerApp::draw(){
 	//--- control panel
 	if(bShowPanel){
 		
-		if( panel.getSelectedPanelName() == "FBO Warper" )
+		if( panel.getCurrentPanelName() == "FBO Warper" )
 		{
 			if( panel.getValueB("toggle_fbo_preview") )
 				pWarper.drawEditInterface(10, 10,.25);
 			else 
+				ofSetLineWidth(3.0);
+				pWarper.drawProjInterface(1024, 0, 1);
+				ofSetLineWidth(1.0);
 				pWarper.drawEditInterface(0, 0, 1);
 			
 			ofSetColor(255,255,255,100);
 			pWarper.drawUV(0, 0, 1);
 		}
 		
+		if( panel.getCurrentPanelName() == "Laser Tracker" && panel.getValueB("bShowPanel") ){
+			laserTracker.drawPanels(0, 0);
+		}
+		
 		panel.draw();
 		ofSetColor(255,255,255,200);
-		if( panel.getSelectedPanelName() != "Architecture Drawing" )
+		if( panel.getCurrentPanelName() != "Architecture Drawing" )
 		{
 			fontSS.drawString("x: toggle control panel  |  p: pause/play  |  s: screen capture  |  m: toggle mouse  |  f: toggle fullscreen  |  R: reset pos/rot  |  arrows: next/prev  |  esc: quit", 90, ofGetHeight()-50);
 			fontSS.drawString("left mouse: alter position  |  left+shift mouse: zoom  |  right mouse: rotate y  |  right+shift mouse: rotate x", 220, ofGetHeight()-30);
@@ -508,18 +600,45 @@ void GrafPlayerApp::draw(){
 
 		}
 		
-		
-		if( bUseAudio && panel.getSelectedPanelName() == "Audio Settings" )
+		if( bUseAudio && panel.getCurrentPanelName() == "Audio Settings" )
 			audio.draw();
 		
 	}
+	
+	ofDrawBitmapString("fps: "+ofToString(ofGetFrameRate()), 10, ofGetHeight()-5);
+	
 }
 
 //--------------------------------------------------------------
 void GrafPlayerApp::keyPressed (ofKeyEventArgs & event){
 
-
+	if( panel.getValueB("useLaser") ){
 	
+		if( event.key == '1' ){
+			laserTracker.clearZone.setPosition(0, laserTracker.laserX, laserTracker.laserY);
+		}
+		if( event.key == '2' ){
+			laserTracker.clearZone.setPosition(1, laserTracker.laserX, laserTracker.laserY);
+		}		
+		if( event.key == '3' ){
+			laserTracker.clearZone.setPosition(2, laserTracker.laserX, laserTracker.laserY);
+		}		
+		if( event.key == '4' ){
+			laserTracker.clearZone.setPosition(3, laserTracker.laserX, laserTracker.laserY);
+		}	
+
+		if( event.key == ' ' ){
+			if( mode == PLAY_MODE_PLAY ){
+				resetPlayer(0);
+			}else{
+				panel.setValueB("laserMode", 0);
+				panel.setValueB("laserMode", 1);
+			}
+		}
+		
+	}
+	
+		
     switch(event.key){
 
   		case 'x': bShowPanel=!bShowPanel; break;
@@ -529,7 +648,6 @@ void GrafPlayerApp::keyPressed (ofKeyEventArgs & event){
 			panel.setValueB("ROTATE",bRotating);
 			panel.setValueB("PLAY",!myTagPlayer.bPaused);
 			break;
-			
 			
 		case OF_KEY_RIGHT:  resetPlayer(1); break;
         case OF_KEY_LEFT:   resetPlayer(-1); break;
@@ -543,7 +661,7 @@ void GrafPlayerApp::keyPressed (ofKeyEventArgs & event){
 			tagPosVel.set(0,0,0);
 			break;
 		case OF_KEY_RETURN:
-			if( panel.getSelectedPanelName() == "Architecture Drawing" )
+			if( panel.getCurrentPanelName() == "Architecture Drawing" )
 				archPhysics.pGroup.addPoly();
 			break;
 		default:
@@ -571,15 +689,22 @@ void GrafPlayerApp::mouseMoved(ofMouseEventArgs & event ){
 //--------------------------------------------------------------
 void GrafPlayerApp::mouseDragged(ofMouseEventArgs & event ){
 
+	bool bMouseInPanel = false;
 	if( bShowPanel && !panel.minimize) 
 	{
-		panel.mouseDragged(event.x,event.y,event.button);
+		bMouseInPanel = panel.mouseDragged(event.x,event.y,event.button);
+		
+		if( panel.getCurrentPanelName() == "Laser Tracker" && panel.getValueB("bShowPanel") ){
+			if( laserTracker.QUAD.updatePoint(event.x, event.y, 0, 0, 200, 150) ){
+				return;
+			}
+		}
 	}
 	
 	bool bMoveTag = true;
 	
-	if( panel.isMouseInPanel(event.x, event.y) )						bMoveTag = false;
-	else if( panel.getSelectedPanelName() == "Architecture Drawing")	bMoveTag = false;
+	if( bMouseInPanel )	bMoveTag = false;
+	else if( panel.getCurrentPanelName() == "Architecture Drawing")	bMoveTag = false;
 	else if( pWarper.isEditing() && pWarper.getMouseIndex() != -1)		bMoveTag = false;
 	
 	if( bMoveTag )
@@ -609,13 +734,22 @@ void GrafPlayerApp::mouseDragged(ofMouseEventArgs & event ){
 //--------------------------------------------------------------
 void GrafPlayerApp::mousePressed(ofMouseEventArgs & event ){
 
-    if( bShowPanel ) panel.mousePressed(event.x,event.y,event.button);
+	bool bIsMouseInPanel = false;
 	
+    if( bShowPanel ){
+		bIsMouseInPanel = panel.mousePressed(event.x,event.y,event.button);
+	
+		if( panel.getCurrentPanelName() == "Laser Tracker" && panel.getValueB("bShowPanel") ){
+			if( laserTracker.QUAD.selectPoint(event.x, event.y, 0, 0, 200, 150, 15) ){
+				return;
+			}
+		}
+	}
 	
 	if(bUseArchitecture)
 	{
-		if( panel.isMouseInPanel(event.x, event.y) ) archPhysics.pGroup.disableAll(true);
-		else if( panel.getSelectedPanelName() == "Architecture Drawing") archPhysics.pGroup.reEnableLast();
+		if( bIsMouseInPanel ) archPhysics.pGroup.disableAll(true);
+		else if( panel.getCurrentPanelName() == "Architecture Drawing") archPhysics.pGroup.reEnableLast();
 	}
 	
 	
@@ -629,12 +763,12 @@ void GrafPlayerApp::mouseReleased(ofMouseEventArgs & event ){
 		panel.mouseReleased();
 	}
 	 
-
-
+	laserTracker.QUAD.releaseAllPoints();
+	
 }
 
 //--------------------------------------------------------------
-void GrafPlayerApp::resetPlayer( int next)
+void GrafPlayerApp::resetPlayer(int next)
 {
 	if(tags.size() <= 0 ) return;
 	
@@ -649,6 +783,8 @@ void GrafPlayerApp::resetPlayer( int next)
 	waitTimer = waitTime;
 	
 	rotationY = 0;
+	tags[currentTagID].rotationSpeed = 0.0;
+	tags[currentTagID].rotation = 0.0;
 	
 	tagPosVel.set(0,0,0);
 	
@@ -775,6 +911,8 @@ void GrafPlayerApp::setupControlPanel()
 	panel.addPanel("Architecture Drawing", 1, false);
 	panel.addPanel("Architecture Settings", 1, false);
 	panel.addPanel("FBO Warper", 1, false);
+	panel.addPanel("Laser Tracker", 1, false);
+	panel.addPanel("Extra Laser Settings", 1, false);
 
 	//---- application sttings
 	panel.setWhichPanel("App Settings");
@@ -848,8 +986,33 @@ void GrafPlayerApp::setupControlPanel()
 	panel.addToggle("Reset Warping", "reset_warping", false);
 	panel.addToggle("Toggle Preview","toggle_fbo_preview",false);
 	
+	panel.setWhichPanel("Laser Tracker");
+	panel.addToggle("Use Laser", "useLaser", false);
+	panel.addToggle("Video/Camera", "bCamera", false);
+	panel.addToggle("camera settings", "camSettings", false);
+	panel.addToggle("show panel", "bShowPanel", false);
+	panel.addToggle("laser mode", "laserMode", true);
+	panel.addSlider("which camera", "whichCamera", 0, 0, 10, true);
+	panel.addSlider("Hue", "hue", 0.0, 0, 1.0, false);
+	panel.addSlider("Hue Width", "hueWidth", 0, 0, 1.0, false);
+	panel.addSlider("Saturation", "saturation", 0, 0, 1.0, false);
+	panel.addSlider("Value", "value", 0, 0, 1.0, false);
+	panel.addCustomRect("colors tracked", &laserTracker, 140, 40);
+	
+	panel.setWhichPanel("Extra Laser Settings");
+	panel.addToggle("use clear zone", "bUseClearZone", true);
+	panel.addToggle("auto end tag rec", "bAutoEndTag", true);
+	panel.addSlider("auto end time", "autoEndTime", 2.2, 1.0, 5.0, false);
+	panel.addSlider("no. frames new stroke", "nFramesNewStroke", 12, 5, 30, true);
+	panel.addSlider("new stroke jump dist", "jumpDist", 0.2, 0.1, 0.99, false);	
+	panel.addToggle("laser move", "laserMove", true);
+	panel.addSlider("laser rotation amount", "laserRotAmount", 1.0, 0.1, 10.0, false);
+	panel.addSlider("laser rotation slowdown", "laserSlowRate", 0.98, 0.88, 0.9999, false);
+	
 	//--- load saved
 	panel.loadSettings(pathToSettings+"appSettings.xml");
+	
+	panel.setValueB("laserMode", false);
 	
 	updateControlPanel(true);
 	//panel.update();
@@ -862,7 +1025,7 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 	
 	//if(!bUpdateAll && !panel.isMouseInPanel(lastX, lastY) ) return;
 	
-	if( panel.getSelectedPanelName() == "App Settings" || bUpdateAll)
+	if( panel.getCurrentPanelName() == "App Settings" || bUpdateAll)
 	{
 		
 		myTagPlayer.bPaused = !panel.getValueB("PLAY");
@@ -884,7 +1047,7 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 
 	}
 	
-	if( panel.getSelectedPanelName() == "Draw Settings" || bUpdateAll)
+	if( panel.getCurrentPanelName() == "Draw Settings" || bUpdateAll)
 	{
 	
 		drawer.setAlpha(panel.getValueF("LINE_ALPHA"));
@@ -905,7 +1068,7 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 		
 	}
 	
-	if(panel.getSelectedPanelName() == "Audio Settings" )
+	if(panel.getCurrentPanelName() == "Audio Settings" )
 	{
 	
 		audio.peakThreshold = panel.getValueF("drop_p_thresh");
@@ -930,9 +1093,9 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 	
 	}
 	
-	if( panel.getSelectedPanelName() == "Architecture Drawing" )
+	if( panel.getCurrentPanelName() == "Architecture Drawing" )
 	{
-		if(panel.bNewPanelSelected)
+		if(panel.newPanelSelected())
 		{
 			archPhysics.bDrawingActive = true;
 			archPhysics.pGroup.reEnableLast();
@@ -971,18 +1134,17 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 		}
 	}
 	
-	if( panel.getSelectedPanelName() == "Architecture Settings" )
+	if( panel.getCurrentPanelName() == "Architecture Settings" )
 	{
 		archPhysics.bShowArchitecture = panel.getValueB("show_drawing_tool");
 		
-		if( panel.isMouseInPanel(lastX, lastY) )
-		{
+		if( panel.hasValueChangedInPanel("Architecture Settings") ){
 			archPhysics.setPhysicsParams( panel.getValueF("box_mass"), panel.getValueF("box_bounce"), panel.getValueF("box_friction"));
-			archPhysics.box2d.setGravity(0,panel.getValueI("gravity") );
+			archPhysics.box2d.setGravity(0, panel.getValueI("gravity") );
 		}
 	}
 	
-	if( panel.getSelectedPanelName() == "FBO Warper")
+	if( panel.getCurrentPanelName() == "FBO Warper")
 	{
 		pWarper.enableEditing();
 		
@@ -1011,12 +1173,12 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 	
 
 	//--- disable things
-	if( panel.getSelectedPanelName() != "FBO Warper" )
+	if( panel.getCurrentPanelName() != "FBO Warper" )
 	{
 		pWarper.disableEditing();
 	}
 	
-	if(panel.getSelectedPanelName() != "Architecture Drawing")
+	if(panel.getCurrentPanelName() != "Architecture Drawing")
 	{
 		archPhysics.bDrawingActive = false;
 		archPhysics.pGroup.disableAll(true);
@@ -1028,7 +1190,182 @@ void GrafPlayerApp::updateControlPanel(bool bUpdateAll)
 	
 	if(bUseArchitecture && !archPhysics.bSetup )
 		archPhysics.setup(screenW,screenH);
+		
+	
+}
 
+//--------
+bool GrafPlayerApp::checkLaserActive(){
+	if( panel.hasValueChanged("useLaser") || panel.hasValueChanged("bCamera") ){
+		if( panel.getValueB("bCamera") ){
+			laserTracker.setupCamera( panel.getValueI("whichCamera"), 320, 240);
+		}else{
+			laserTracker.setupVideo("laserTestVideo.mov");
+		}
+	}
+	
+	if( panel.getValueB("bCamera") && panel.getValueB("camSettings") ){
+		panel.setValueB("camSettings", false);
+		laserTracker.openCameraSettings();
+	}
+	
+	return panel.getValueB("useLaser");
+}
+
+//--------
+void GrafPlayerApp::handleLaserPlayback(){
+	laserTracker.clearNewStroke();
+	
+	if( !checkLaserActive() ){
+		return;
+	}
+		
+	if( panel.hasValueChanged("laserMode") ){
+		resetPlayer(0);
+		tags[currentTagID].center.x  = 0.5;
+		tags[currentTagID].center.y  = 0.5;
+		tags[currentTagID].drawScale = screenH;
+		
+		drawer.transitionFlatten( tags[currentTagID].center.z, 1);
+		particleDrawer.flatten( tags[currentTagID].center.z, 1);		
+	}
+
+	float preX = laserTracker.laserX;
+	float preY = laserTracker.laserY;
+	
+	laserTracker.processFrame(panel.getValueF("hue"), panel.getValueF("hueWidth"), panel.getValueF("saturation"), panel.getValueF("value"), 2, 12, 0.1, true);
+
+	float diff = laserTracker.laserX - preX;
+		
+	if( panel.getValueB("laserMove") && tags.size() ){
+		
+		//printf("tags rotation is %f \n", tags[currentTagID].rotation.x);
+		
+		tags[currentTagID].rotationSpeed.y	*= panel.getValueF("laserSlowRate");
+		
+		if( laserTracker.newData() ){
+			if( laserTracker.isStrokeNew() ){
+				preX = laserTracker.laserX;
+				preY = laserTracker.laserY;
+				diff = 0.0;
+				printf("stroke is new!\n");
+			}
+			tags[currentTagID].rotationSpeed.y	+= diff * panel.getValueF("laserRotAmount");
+		}
+
+		tags[currentTagID].rotation.y		+= tags[currentTagID].rotationSpeed.y;
+
+	}
+	
+}
+
+//--------
+void GrafPlayerApp::handleLaserRecord(){
+
+	laserTracker.clearNewStroke();
+
+	if( !checkLaserActive() ){
+		return;
+	}
+		
+	bool newTag = ( panel.hasValueChanged("laserMode") && panel.getValueB("laserMode") );
+	
+	if( newTag ){
+		particleDrawer.reset();
+		printf("clearing tags\n");
+		//tags.clear();
+	}
+	
+	if( tags.size() ==  0 ){
+		tags.push_back(grafTagMulti());
+	}
+	
+	currentTagID = tags.size()-1;
+		
+	if( newTag ){
+		tags.back().clear(true);
+		simpleLine.clear();
+		simpleLine.push_back( simpleStroke() );		
+	}
+	
+	bool bNewStroke = false;
+	float preX		= laserTracker.laserX;
+	float preY		= laserTracker.laserY;	
+	
+	laserTracker.processFrame(panel.getValueF("hue"), panel.getValueF("hueWidth"), panel.getValueF("saturation"), panel.getValueF("value"), 2, panel.getValueI("nFramesNewStroke"), panel.getValueF("jumpDist"), true);
+
+	if( laserTracker.newData() && laserTracker.isStrokeNew() && !newTag ){
+	
+		//tags.back().nextStroke();
+		printf("stroke is new!\n");
+		
+		if( tags.back().getNPts() == 0 ){
+			tags.back().clear(true);
+			simpleLine.clear();
+			simpleLine.push_back( simpleStroke() );		
+		}
+
+		preX = laserTracker.laserX;
+		preY = laserTracker.laserY;
+		bNewStroke = true;
+	}
+	
+	if( laserTracker.newData() ){
+	
+		if( simpleLine.size() == 0 ){
+			simpleLine.push_back( simpleStroke() );
+		}
+	
+		if( bNewStroke ){		
+			smoothX = preX = laserTracker.laserX;
+			smoothY = preY = laserTracker.laserY;
+			
+			tags.back().nextStroke();
+			tags.back().addNewPoint(ofPoint(smoothX, smoothY) );
+			
+			simpleLine.push_back( simpleStroke() );
+			simpleLine.back().push_back(ofPoint(smoothX, smoothY) );
+
+		}else{
+			for(int k = 0; k < 4; k++){
+				smoothX *= 0.6;
+				smoothY *= 0.6;
+				
+				float ptX = ofMap(k+1, 0, 4, preX, laserTracker.laserX);
+				float ptY = ofMap(k+1, 0, 4, preY, laserTracker.laserY);
+
+				smoothX += ptX * 0.4;
+				smoothY += ptY * 0.4;
+								
+				tags.back().addNewPoint(ofPoint(smoothX, smoothY));
+				simpleLine.back().push_back( ofPoint(smoothX, smoothY) );
+			}
+		}
+		
+		lastTimePointAddedF = ofGetElapsedTimef();
+	}else{
+		
+		if( tags.back().getNPts() > 3 && panel.getValueB("bAutoEndTag") && ofGetElapsedTimef() - lastTimePointAddedF > panel.getValueF("autoEndTime")){
+			panel.setValueB("laserMode", false);
+			laserTracker.clearZone.bState = false;
+			resetPlayer(0);
+			tags[currentTagID].center.x  = 0.5;
+			tags[currentTagID].center.y  = 0.5;
+			tags[currentTagID].drawScale = screenH;
+			
+			drawer.transitionFlatten( tags[currentTagID].center.z, 1);
+			particleDrawer.flatten( tags[currentTagID].center.z, 1);
+		}
+	
+	}
+	
+}
+
+//------------------------------------------
+void GrafPlayerApp::checkLaserHitState(){
+	if( laserTracker.clearZone.bState != panel.getValueB("laserMode") ){
+		panel.setValueB("laserMode", laserTracker.clearZone.bState );
+	}
 }
 
 string GrafPlayerApp::getCurrentTagName()

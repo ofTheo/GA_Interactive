@@ -140,7 +140,7 @@
     <val_0>1.000000</val_0>
 </use_audio>
 <use_arch>
-    <val_0>1.000000</val_0>
+    <val_0>0.000000</val_0>
 </use_arch>
 <gravity>
     <val_0>6.000000</val_0>
@@ -154,3 +154,60 @@
 <toggle_fbo_preview>
     <val_0>0.000000</val_0>
 </toggle_fbo_preview>
+<save_Tag_pos>
+    <val_0>0.000000</val_0>
+</save_Tag_pos>
+<useLaser>
+    <val_0>1.000000</val_0>
+</useLaser>
+<bCamera>
+    <val_0>1.000000</val_0>
+</bCamera>
+<bShowPanel>
+    <val_0>1.000000</val_0>
+</bShowPanel>
+<whichCamera>
+    <val_0>0.000000</val_0>
+</whichCamera>
+<hue>
+    <val_0>0.233333</val_0>
+</hue>
+<hueWidth>
+    <val_0>0.044444</val_0>
+</hueWidth>
+<saturation>
+    <val_0>0.000000</val_0>
+</saturation>
+<value>
+    <val_0>0.050000</val_0>
+</value>
+<laserMove>
+    <val_0>1.000000</val_0>
+</laserMove>
+<laserRotAmount>
+    <val_0>6.590000</val_0>
+</laserRotAmount>
+<laserSlowRate>
+    <val_0>0.975254</val_0>
+</laserSlowRate>
+<laserMode>
+    <val_0>0.000000</val_0>
+</laserMode>
+<camSettings>
+    <val_0>0.000000</val_0>
+</camSettings>
+<nFramesNewStroke>
+    <val_0>9.027778</val_0>
+</nFramesNewStroke>
+<jumpDist>
+    <val_0>0.352167</val_0>
+</jumpDist>
+<bUseClearZone>
+    <val_0>1.000000</val_0>
+</bUseClearZone>
+<bAutoEndTag>
+    <val_0>1.000000</val_0>
+</bAutoEndTag>
+<autoEndTime>
+    <val_0>1.711111</val_0>
+</autoEndTime>

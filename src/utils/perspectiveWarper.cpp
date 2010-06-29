@@ -193,6 +193,18 @@ void PerspectiveWarper::drawEditInterface( float x, float y, float scale )
 	ofSetColor(0xffffff);
 }
 
+void PerspectiveWarper::drawProjInterface( float x, float y, float scale ){	
+	ofNoFill();
+		
+	for ( int i=0; i<4; i++ )
+	{
+		ofSetColor( 255, 255, 255, 255 );
+		ofLine( x+(points[i].x*scale), y+(points[i].y*scale),  x+(points[(i+1)%4].x*scale), y+(points[(i+1)%4].y*scale) );
+		ofCircle( x+(points[i].x*scale), y+(points[i].y*scale), 10*scale );
+	}
+	
+	ofSetColor(0xffffff);
+}
 
 void PerspectiveWarper::mouseMoved(ofMouseEventArgs& event)
 {

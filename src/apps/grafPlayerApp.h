@@ -22,10 +22,14 @@
 #include "grafArchitecture.h"
 #include "perspectiveWarper.h"
 
+#include "laserTracking.h"
+
 #define TAG_DIRECTORY	"tags/"
 #define WARP_DIV	.125
 
-enum{ PLAY_MODE_LOAD, PLAY_MODE_PLAY };
+enum{ PLAY_MODE_LOAD, PLAY_MODE_RECORD, PLAY_MODE_PLAY };
+
+typedef vector <ofPoint> simpleStroke;
 
 class GrafPlayerApp{
 
@@ -62,6 +66,15 @@ class GrafPlayerApp{
 		void updateAudio();
 		void updateArchitecture();
 		
+		bool checkLaserActive();
+		void handleLaserRecord();
+		void handleLaserPlayback();
+		void checkLaserHitState();
+		
+		vector <simpleStroke> simpleLine;
+		float smoothX, smoothY;
+		float lastTimePointAddedF;
+		
 		//---- tag loading
 		void preLoadTags();
 		void loadTags();
@@ -97,6 +110,9 @@ class GrafPlayerApp{
 		int						totalToLoad;			// totalFiles found to load
 		vector<string>			filesToLoad;			// list of all file paths
 		vector<string>			filenames;				// list of corresponding file names (sans .gml)
+		
+		//---------- laser io 
+		laserTracking laserTracker;
 	
 		//---------- gml tags
 		vector<grafTagMulti> tags;						// vector of all loaded tags

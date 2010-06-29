@@ -44,6 +44,7 @@ class PerspectiveWarper
 		ofPoint warpPointInv( const ofPoint& p );
 		
 		/// draw at given x,y pos
+		void drawProjInterface( float x, float y, float scale );
 		void drawEditInterface( float x, float y, float scale );
 		void drawUV( float x, float y, float scale );
 		

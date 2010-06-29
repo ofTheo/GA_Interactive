@@ -56,6 +56,7 @@ class grafTagMulti
 		vector <strokes>		myStrokes;            // al points in tag
 
 		// global tag draw params
+		ofPoint				rotationSpeed;
 		ofPoint             rotation;
 		ofPoint             position;
 		float               z_const;
